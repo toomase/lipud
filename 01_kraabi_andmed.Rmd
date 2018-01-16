@@ -1,0 +1,53 @@
+---
+title: "Riikide nimekiri ja lipud"
+output: html_notebook
+---
+
+Kraabi kõigi maailma riikide nimekiri ja nende lippude url. Pane tulemustest kokku data frame, mida kasutan shiny apis.
+
+```{r}
+library(rvest)
+library(tidyverse)
+```
+
+Wikipiedia leht koos riikide nimekirjaga ja lippudega
+```{r}
+riigid_url <- "https://et.wikipedia.org/wiki/ISO_maakoodide_loend"
+```
+
+Riikide nimed ja lipu pildi url
+```{r}
+wiki_leht <- read_html(riigid_url)
+
+riigid <- wiki_leht %>% 
+  html_nodes("td:nth-child(1) a") %>% 
+  html_text() %>%
+  data_frame(riik = .) %>% 
+  filter(riik != "", riik != "Antarktis")
+
+lipud <- wiki_leht %>% 
+  html_nodes(".thumbborder") %>% 
+  html_attr('src')
+```
+
+Ühes tabelis riikide nimekiri ja lipu url shiny tabelis kuvamise formaadis
+```{r}
+riigid_lippudega <- riigid %>% 
+  mutate(lipu_url = lipud,
+         lipp = str_c('<img src=\"https:', lipu_url, '\" ></img>'),
+         laenutaja = as.character(NA),
+         laenutamise_aeg = as.character(NA),
+         tagastamise_aeg = as.character(NA),
+         id = row_number()) %>% 
+  select(id, lipp, riik, laenutaja, laenutamise_aeg, tagastamise_aeg)
+
+# kuva selliselt, nagu shiny äpis
+DT::datatable(riigid_lippudega, escape = FALSE)
+```
+
+Salvesta tulemus
+```{r}
+save(riigid_lippudega, file = "data/riigid_lippudega.RData")
+```
+
+
