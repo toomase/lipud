@@ -3,14 +3,20 @@ library(tidyverse)
 library(DT)
 library(shinyjs)
 
+# Lae algandmed kõigi lippude kohta
 riigid_lippudega <- read_csv("~/Dropbox/DataScience/R/lipud/lipud/responses/riigid_lippudega.csv")
 
+# Funktsioon salvestab tabeli csv faili ja nimetab selle kuupäeva-kellaaja järgi unikaalselt
+# Kasutan seda laenutamiste ja tagastamiste tabeli salvestamiseks
+# Iga andmete lisamine salvestub eraldi csv failina
 save_data <- function(data) {
   write_csv(x = data, 
             path = file.path("~/Dropbox/DataScience/R/lipud/lipud/responses", 
                              str_c(as.integer(Sys.time()), ".csv")))
 }
 
+# Funktsioon laeb kõik failid "responses" kaustast ja kirjutab need kokku ühte tabelisse
+# Kasutan seda, et kõik lippude laenutamiste ja tagastamiste csv failid äppi laadida
 load_data <- function() {
   files <- list.files("~/Dropbox/DataScience/R/lipud/lipud/responses", full.names = TRUE)
   data <- map_df(files, read_csv)
@@ -19,40 +25,54 @@ load_data <- function() {
 
 
 ui <- fluidPage(
-  useShinyjs(),
+  useShinyjs(),  # vajalik lisafunktsioonide (alert ja reset) jaoks 
+  
   title = "Lippude andmebaas",
+  
   sidebarLayout(
     sidebarPanel(
       
+      # Laenutamise valikute blokk
       wellPanel(
         h3("Laenutus"),
-      textInput(inputId = "laenutaja", 
-                label = "Kes laenutab"
+        
+        # Sisesta laenutaja nimi - vabateksti väli
+        textInput(inputId = "laenutaja",
+                  label = "Kes laenutab"
+        ),
+        
+        # Vali riigilipud, mida soovid laenutada
+        selectInput(inputId = "riik", 
+                    label = "Vali riik:", 
+                    multiple = TRUE,
+                    choices = riigid_lippudega$riik  # valikus on kõik algbaasis olevad lipud
+        ),
+        
+        # Nupp, mis lisab laenutuse andmed baasi
+        actionButton(inputId = "lisa", 
+                     label = "Lisa")
       ),
       
-      selectInput(inputId = "riik", 
-                  label = "Vali riik:", 
-                  multiple = TRUE,
-                  choices = riigid_lippudega$riik
-      ),
-
-      actionButton(inputId = "lisa", 
-                   label = "Lisa")
+      
+      # Tagastamise valikute blokk
+      wellPanel(
+        h3("Tagastus"),
+        
+        # Vali riigilipu ja laenutaja kombinatsioonid, mida soovid tagastada
+        # Sisendiks on kõik hetkel väljalaenutatud lipud
+        uiOutput("tagastus_riik"),
+      
+        # Nupp, mis lisab tagastuse andmed baasi
+        actionButton(inputId = "tagasta", 
+                     label = "Tagasta")
+      )
     ),
     
-    wellPanel(
-      h3("Tagastud"),
-      
-      uiOutput("tagastus_riik"),
-      
-      actionButton(inputId = "tagasta", 
-                   label = "Tagasta")
-    )
-  ),
-    
     mainPanel(
-      DT::dataTableOutput("table"),
+      # Kuva välja tabel kõigi lippude kohta koos laenutamise staatusega
+      dataTableOutput("table"),
       
+      # Kuva kogu ridade arv "responses" kaustas
       textOutput("ridu")
     )
   )
@@ -84,7 +104,6 @@ server <- function(input, output) {
   })
   
   
-  # When the Submit button is clicked, save the form data
   observeEvent(input$lisa, {
     save_data(laenutatud())
   })
@@ -164,5 +183,5 @@ server <- function(input, output) {
       }, escape = FALSE, filter = "top")})
 }
 
-# Run the application 
+# Käivita äpp
 shinyApp(ui = ui, server = server)
