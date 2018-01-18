@@ -64,7 +64,8 @@ server <- function(input, output) {
   
   laenutatud <- reactive({
     validate(
-      need(input$laenutaja != "", "Please select a data set")
+      need(input$laenutaja != "", ""),
+      need(input$riik, "")
     )
     
     data <- riigid_lippudega %>%
@@ -81,6 +82,7 @@ server <- function(input, output) {
       alert("Sisesta laenutaja nimi")
     }
   })
+  
   
   # When the Submit button is clicked, save the form data
   observeEvent(input$lisa, {
@@ -107,16 +109,30 @@ server <- function(input, output) {
   })
   
     tagastatud <- reactive({
+      
     data <- df() %>%
-      filter(str_c(riik, " - ", laenutaja) %in% input$tagastus_riik) %>% 
+      arrange(riik, tagastamise_aeg, laenutamise_aeg) %>%
+      distinct(riik, .keep_all = TRUE) %>%
+      # select(-id, -tagastamise_aeg) %>%
+      arrange(laenutamise_aeg, riik) %>% 
+      filter((str_c(riik, " - ", laenutaja) %in% input$tagastus_riik | 
+               row_number() %in% input$table_rows_selected),
+             !is.na(laenutamise_aeg)) %>% 
       mutate(tagastamise_aeg = as.character(format(Sys.Date(), "%d.%m.%Y")))
     
     data
   })
   
+    observeEvent(input$tagasta, {
+      if (nrow(tagastatud()) == 0) {
+        alert("Vali tagastatav lipp")
+      }
+    })
     
   observeEvent(input$tagasta, {
-    save_data(tagastatud())
+    if (nrow(tagastatud()) > 0) {
+      save_data(tagastatud()) 
+    }
   })
   
   output$ridu <- renderText({nrow(df())})
@@ -145,7 +161,7 @@ server <- function(input, output) {
       distinct(riik, .keep_all = TRUE) %>%
       # select(-id, -tagastamise_aeg) %>%
       arrange(laenutamise_aeg, riik)
-      }, escape = FALSE)})
+      }, escape = FALSE, filter = "top")})
 }
 
 # Run the application 

@@ -38,7 +38,7 @@ riigid_lippudega <- riigid %>%
          laenutaja = as.character(NA),
          laenutamise_aeg = as.character(NA),
          tagastamise_aeg = as.character(NA),
-         id = row_number()) %>% 
+         id = as.character(row_number())) %>% 
   select(id, lipp, riik, laenutaja, laenutamise_aeg, tagastamise_aeg)
 
 # kuva selliselt, nagu shiny äpis
@@ -50,4 +50,8 @@ Salvesta tulemus
 save(riigid_lippudega, file = "data/riigid_lippudega.RData")
 ```
 
+Salvesta csv äpis kasutamiseks
+```{r}
+write_csv(riigid_lippudega, "lipud/responses/riigid_lippudega.csv")
+```
 
