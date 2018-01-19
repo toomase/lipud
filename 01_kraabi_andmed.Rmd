@@ -36,10 +36,11 @@ riigid_lippudega <- riigid %>%
   mutate(lipu_url = lipud,
          lipp = str_c('<img src=\"https:', lipu_url, '\" ></img>'),
          laenutaja = as.character(NA),
-         laenutamise_aeg = as.character(NA),
-         tagastamise_aeg = as.character(NA),
+         algus_kp = as.character(NA),
+         lopp_kp = as.character(NA),
+         tagastamise_kp = as.character(NA),
          id = as.character(row_number())) %>% 
-  select(id, lipp, riik, laenutaja, laenutamise_aeg, tagastamise_aeg)
+  select(id, lipp, riik, laenutaja, algus_kp, lopp_kp, tagastamise_kp)
 
 # kuva selliselt, nagu shiny äpis
 DT::datatable(riigid_lippudega, escape = FALSE)
@@ -47,7 +48,7 @@ DT::datatable(riigid_lippudega, escape = FALSE)
 
 Salvesta tulemus
 ```{r}
-save(riigid_lippudega, file = "data/riigid_lippudega.RData")
+# save(riigid_lippudega, file = "data/riigid_lippudega.RData")
 ```
 
 Salvesta csv äpis kasutamiseks
