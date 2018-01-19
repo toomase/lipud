@@ -2,6 +2,7 @@ library(shiny)
 library(tidyverse)
 library(DT)
 library(shinyjs)
+library(lubridate)
 
 # Lae algandmed kõigi lippude kohta
 riigid_lippudega <- read_csv("~/Dropbox/DataScience/R/lipud/lipud/responses/riigid_lippudega.csv")
@@ -20,7 +21,7 @@ save_data <- function(data) {
 load_data <- function() {
   files <- list.files("~/Dropbox/DataScience/R/lipud/lipud/responses", full.names = TRUE)
   data <- map_df(files, read_csv)
-  data
+  data 
 }
 
 
@@ -36,18 +37,6 @@ ui <- fluidPage(
       wellPanel(
         h3("Laenutus"),
         
-        # Sisesta laenutaja nimi - vabateksti väli
-        textInput(inputId = "laenutaja",
-                  label = "Kes laenutab"
-        ),
-        
-        # Vali riigilipud, mida soovid laenutada
-        selectInput(inputId = "riik", 
-                    label = "Vali riik:", 
-                    multiple = TRUE,
-                    choices = riigid_lippudega$riik  # valikus on kõik algbaasis olevad lipud
-        ),
-        
         # Vali laenutamise algus (vaikimisi täna) ja lõpp (vaikimisi täna + 2 nädalat) kp
         # Vaikimisi väärtus tänane kp
         dateRangeInput(inputId = "laenutamise_kp",
@@ -58,6 +47,14 @@ ui <- fluidPage(
                        separator = " kuni ",
                        language = "et",
                        weekstart = 1
+        ),
+        
+        # Vali riigilipud, mida soovid laenutada
+        uiOutput("riik"),
+        
+        # Sisesta laenutaja nimi - vabateksti väli
+        textInput(inputId = "laenutaja",
+                  label = "Kes laenutab"
         ),
         
         # Nupp, mis lisab laenutuse andmed baasi
@@ -119,7 +116,7 @@ server <- function(input, output) {
       mutate(algus_kp = as.character(format(input$laenutamise_kp[1], "%d.%m.%Y")),
              lopp_kp = as.character(format(input$laenutamise_kp[2], "%d.%m.%Y")),
              laenutaja = ifelse(input$riik %in% riik, input$laenutaja, NA),
-             id = str_c(id, as.integer(Sys.time())))
+             id = str_c(id, as.integer(Sys.time()), sep = "-"))
       
       data
   })
@@ -170,10 +167,15 @@ server <- function(input, output) {
     # Sorteeri andmed samale kujule nagu äpis on välja kuvatud
     # See on vajalik, et tabelis klikkimise rea numbrite põhjal tagstamisi teha
     data <- df() %>%
-      arrange(riik, tagastamise_kp, algus_kp) %>%
-      distinct(riik, .keep_all = TRUE) %>%
-      # select(-id, -tagastamise_aeg) %>%
-      arrange(algus_kp, riik) %>% 
+      group_by(id) %>%
+      filter(n_distinct(tagastamise_kp, na.rm = TRUE) == 0) %>%
+      ungroup() %>%
+      group_by(riik) %>% 
+      mutate(arv = n_distinct(algus_kp)) %>% 
+      ungroup() %>% 
+      filter((!is.na(algus_kp) & arv > 1) | 
+               (is.na(algus_kp) & arv == 1)) %>%
+      arrange(lopp_kp, riik) %>% 
       filter((str_c(riik, " - ", laenutaja) %in% input$tagastus_riik |  # riigilipu ja laenutaja kombinatsioon
                row_number() %in% input$table_rows_selected),   # valik tabelist
              !is.na(algus_kp)) %>%  # ainult väjalaenatud lipud
@@ -205,29 +207,69 @@ server <- function(input, output) {
   # Testimiseks kuva kogu ridade arv "responses" kaustas
   output$ridu <- renderText({nrow(df_2())})
   
-  # Koosta dünaamiline tagastatavate lippude nimekiri, et seda drop-down menüüs kuvada
+  # Koosta dünaamiline laenutatavate lippude nimekiri, et seda drop-down menüüs kuvada
+  # Sisaldab piirangut, et kuvatakse ainult valitud ajavahemikul vabu lippe
   output$tagastus_riik <- renderUI({
     selectInput(inputId = "tagastus_riik", 
                 label = "Vali riik:", 
                 multiple = TRUE,
                 choices = df_2() %>% 
-                  arrange(riik, tagastamise_kp, algus_kp) %>%
-                  distinct(riik, .keep_all = TRUE) %>% 
+                  group_by(id) %>%
+                  filter(n_distinct(tagastamise_kp, na.rm = TRUE) == 0) %>%
+                  ungroup() %>%
+                  group_by(riik) %>% 
+                  mutate(arv = n_distinct(algus_kp)) %>% 
+                  ungroup() %>% 
+                  filter((!is.na(algus_kp) & arv > 1) | 
+                           (is.na(algus_kp) & arv == 1)) %>%
+                  arrange(lopp_kp, riik) %>% 
                   # ainult need, mis on välja laenutatud
                   filter(!is.na(algus_kp), is.na(tagastamise_kp)) %>% 
                   mutate(riik_2 = str_c(riik, " - ", laenutaja)) %>% 
                   pull(riik_2)
     )
   })
+    
+  # Koosta dünaamiline tagastatavate lippude nimekiri, et seda drop-down menüüs kuvada
+  output$riik <- renderUI({
+    selectInput(inputId = "riik", 
+                label = "Vali riigilipp:", 
+                multiple = TRUE,
+                choices = df_2() %>% 
+                  group_by(id) %>%
+                  filter(n_distinct(tagastamise_kp, na.rm = TRUE) == 0) %>%
+                  ungroup() %>%
+                  group_by(riik) %>% 
+                  mutate(arv = n_distinct(algus_kp)) %>% 
+                  ungroup() %>% 
+                  filter((!is.na(algus_kp) & arv > 1) | 
+                           (is.na(algus_kp) & arv == 1)) %>%
+                  arrange(lopp_kp, riik) %>% 
+                  # mutate(interval_laenutus = interval(as.Date(algus_kp, "%d.%m.%Y"),
+                  #                                     as.Date(lopp_kp, "%d.%m.%Y")),
+                  #        interval_soov = interval(input$laenutamise_kp[1], input$laenutamise_kp[2]),
+                  #        kattuvus = int_overlaps(interval_laenutus, interval_soov)) %>% 
+                  # filter(kattuvus == FALSE) %>% 
+                  # ainult need, mis on välja laenutatud
+                  pull(riik)
+    )
+  })
   
-  # Kuva tabelis kõik lipud koos nende laenutus kuupäevadega
+  # Kuva tabelis kõik lipud koos nende laenutus/broneerimis kuupäevadega
+  # Kuvatud on iga lipp nii mitme kordselt kui mitu kehtivat laenutust või tuleviku broneeringut tal peal on
   output$table <- renderDataTable({
   datatable({
     df_2() %>% 
-      arrange(riik, tagastamise_kp, algus_kp) %>%
-      distinct(riik, .keep_all = TRUE) %>%
-      # select(-id, -tagastamise_aeg) %>%
-      arrange(algus_kp, riik)
+      group_by(id) %>%
+      filter(n_distinct(tagastamise_kp, na.rm = TRUE) == 0) %>%
+      ungroup() %>%
+      group_by(riik) %>% 
+      mutate(arv = n_distinct(algus_kp)) %>% 
+      ungroup() %>% 
+      filter((!is.na(algus_kp) & arv > 1) | 
+               (is.na(algus_kp) & arv == 1)) %>%
+      select(-arv) %>% 
+      arrange(lopp_kp, riik)
       }, escape = FALSE, filter = "top")})
 }
 
