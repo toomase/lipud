@@ -8,6 +8,7 @@ Kraabi kõigi maailma riikide nimekiri ja nende lippude url. Pane tulemustest ko
 ```{r}
 library(rvest)
 library(tidyverse)
+library(splitstackshape)
 ```
 
 Wikipiedia leht koos riikide nimekirjaga ja lippudega
@@ -32,7 +33,7 @@ lipud <- wiki_leht %>%
 
 Ühes tabelis riikide nimekiri ja lipu url shiny tabelis kuvamise formaadis
 ```{r}
-riigid_lippudega <- riigid %>% 
+riigid_lippudega_raw <- riigid %>% 
   mutate(lipu_url = lipud,
          lipp = str_c('<img src=\"https:', lipu_url, '\" ></img>'),
          laenutaja = as.character(NA),
@@ -43,8 +44,27 @@ riigid_lippudega <- riigid %>%
   select(id, lipp, riik, laenutaja, algus_kp, lopp_kp, tagastamise_kp)
 
 # kuva selliselt, nagu shiny äpis
-DT::datatable(riigid_lippudega, escape = FALSE)
+DT::datatable(riigid_lippudega_raw, escape = FALSE)
 ```
+
+Kuna ühte lipu võib olla laos mitu tükki, siis tekita näidis andmed.
+Iga lipp saab ka unikaalse id.
+```{r}
+riigid_lippudega <- riigid_lippudega_raw %>%
+  mutate(mitu_lippu = case_when(riik == "Läti" ~ 4,
+                                riik == "Soome" ~ 6,
+                                riik == "Rootsi" ~ 3,
+                                TRUE ~ 1),
+         mitu_lippu_2 = mitu_lippu) %>% 
+  expandRows("mitu_lippu") %>%  # korda ridu nii mitu korda, kui palju vastavat lippu laos on
+  mutate(id_2 = id) %>% 
+  group_by(id_2) %>% 
+  mutate(id = ifelse(mitu_lippu_2 > 1, str_c(id, row_number(), sep = "-"), id),
+         riik = ifelse(mitu_lippu_2 > 1, str_c(riik, row_number(), sep = "-"), riik)) %>% 
+  ungroup() %>% 
+  select(-id_2, -mitu_lippu_2)
+```
+
 
 Salvesta tulemus
 ```{r}
