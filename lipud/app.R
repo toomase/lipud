@@ -3,6 +3,7 @@ library(tidyverse)
 library(DT)
 library(shinyjs)
 library(lubridate)
+library(shinythemes)
 
 # Lae algandmed kõigi lippude kohta
 riigid_lippudega <- read_csv("~/Dropbox/DataScience/R/lipud/lipud/responses/riigid_lippudega.csv")
@@ -26,9 +27,11 @@ load_data <- function() {
 
 
 ui <- fluidPage(
+  theme = shinytheme("flatly"),  # muuda üldine kujundus
   useShinyjs(),  # vajalik lisafunktsioonide (alert ja reset) jaoks 
-  
-  title = "Lippude andmebaas",
+
+  titlePanel("EOK lippude laenutamise andmebaas",
+  windowTitle = "Lipud"),
   
   sidebarLayout(
     sidebarPanel(
@@ -54,7 +57,7 @@ ui <- fluidPage(
         
         # Sisesta laenutaja nimi - vabateksti väli
         textInput(inputId = "laenutaja",
-                  label = "Kes laenutab"
+                  label = "Kes laenutab:"
         ),
         
         # Nupp, mis lisab laenutuse andmed baasi
@@ -175,7 +178,7 @@ server <- function(input, output) {
       ungroup() %>% 
       filter((!is.na(algus_kp) & arv > 1) | 
                (is.na(algus_kp) & arv == 1)) %>%
-      arrange(lopp_kp, riik) %>% 
+      arrange(as.Date(lopp_kp, "%d.%m.%Y"), riik) %>% 
       filter((str_c(riik, " - ", laenutaja) %in% input$tagastus_riik |  # riigilipu ja laenutaja kombinatsioon
                row_number() %in% input$table_rows_selected),   # valik tabelist
              !is.na(algus_kp)) %>%  # ainult väjalaenatud lipud
@@ -200,12 +203,19 @@ server <- function(input, output) {
   })
   
   # Alati kui klikitakse "Lisa" või "Tagasta", lae kõik andmed "responses" kaustast
+  # Töötle tabelit nii, et kuvatud ei ole tagastatud lippude kohta laenutamise aega
   df_2 <- eventReactive(input$lisa | input$tagasta, {
-    load_data()
+    load_data() %>% 
+      group_by(id) %>%
+      filter(n_distinct(tagastamise_kp, na.rm = TRUE) == 0) %>%
+      ungroup() %>%
+      group_by(riik) %>% 
+      mutate(arv = n_distinct(algus_kp)) %>% 
+      ungroup() %>% 
+      filter((!is.na(algus_kp) & arv > 1) | 
+               (is.na(algus_kp) & arv == 1)) %>% 
+      mutate(hilinenud = if_else(as.Date(lopp_kp, "%d.%m.%Y") < Sys.Date(), 1, 0))
   })
-  
-  # Testimiseks kuva kogu ridade arv "responses" kaustas
-  output$ridu <- renderText({nrow(df_2())})
   
   # Koosta dünaamiline tagastatavate lippude nimekiri, et seda drop-down menüüs kuvada
   # Sisaldab piirangut, et kuvatakse ainult välja laenutatud riigilipud
@@ -214,17 +224,10 @@ server <- function(input, output) {
                 label = "Vali riik:", 
                 multiple = TRUE,
                 choices = df_2() %>% 
-                  group_by(id) %>%
-                  filter(n_distinct(tagastamise_kp, na.rm = TRUE) == 0) %>%
-                  ungroup() %>%
-                  group_by(riik) %>% 
-                  mutate(arv = n_distinct(algus_kp)) %>% 
-                  ungroup() %>% 
-                  filter((!is.na(algus_kp) & arv > 1) | 
-                           (is.na(algus_kp) & arv == 1)) %>%
                   arrange(riik) %>% 
                   # ainult need, mis on välja laenutatud
                   filter(!is.na(algus_kp), is.na(tagastamise_kp)) %>% 
+                  # kuva välja riiginimi ja laenutaja nimi
                   mutate(riik_2 = str_c(riik, " - ", laenutaja)) %>% 
                   pull(riik_2)
     )
@@ -237,16 +240,8 @@ server <- function(input, output) {
                 label = "Vali riigilipp:", 
                 multiple = TRUE,
                 choices = df_2() %>% 
-                  group_by(id) %>%
-                  filter(n_distinct(tagastamise_kp, na.rm = TRUE) == 0) %>%
-                  ungroup() %>%
-                  group_by(riik) %>% 
-                  mutate(arv = n_distinct(algus_kp)) %>% 
-                  ungroup() %>% 
-                  filter((!is.na(algus_kp) & arv > 1) | 
-                           (is.na(algus_kp) & arv == 1)) %>%
                   arrange(riik) %>% 
-                  # ainult need, mis ei ole välja laenutatud
+                  # ainult need, mis ei ole valitud kuupäevadel välja laenutatud
                   mutate(vahel = ifelse((input$laenutamise_kp[1] >= as.Date(algus_kp, "%d.%m.%Y") &
                                            input$laenutamise_kp[1] <= as.Date(lopp_kp, "%d.%m.%Y")) |
                                         (as.Date(algus_kp, "%d.%m.%Y") >= input$laenutamise_kp[1] &
@@ -255,30 +250,26 @@ server <- function(input, output) {
                   pull(riik)
     )
   })
-  
+
   # Kuva tabelis kõik lipud koos nende laenutus/broneerimis kuupäevadega
   # Kuvatud on iga lipp nii mitme kordselt kui mitu kehtivat laenutust või tuleviku broneeringut tal peal on
   output$table <- renderDataTable({
   datatable({
     df_2() %>% 
-      group_by(id) %>%
-      filter(n_distinct(tagastamise_kp, na.rm = TRUE) == 0) %>%
-      ungroup() %>%
-      group_by(riik) %>% 
-      mutate(arv = n_distinct(algus_kp)) %>% 
-      ungroup() %>% 
-      filter((!is.na(algus_kp) & arv > 1) | 
-               (is.na(algus_kp) & arv == 1)) %>%
       select(-arv, -id, -tagastamise_kp) %>% 
-      arrange(lopp_kp, riik)
+      arrange(as.Date(lopp_kp, "%d.%m.%Y"), riik)
       }, 
     escape = FALSE, rownames = FALSE,
-    colnames = c(" " = "lipp"),
+    colnames = c(" " = "lipp", "Riik" = "riik", "Laenutaja" = "laenutaja",
+                 "Laenutatud alates" = "algus_kp", "Laenutatud kuni" = "lopp_kp"),
     # lipu järgi ei saa filtreerida
     options = list(
-      columnDefs = list(list(searchable = FALSE, targets = 0))),
+      pageLength = 20,  # kuva vaikimisi 20 rida
+      columnDefs = list(list(targets = 5, visible = FALSE),  # peida veerg "hilinenud" - kasutan taustavärviks
+                        list(width = "20px", targets = 0))),  # lipu veerg kindla laiusega  
     ) %>% 
-      formatStyle('lopp_kp',  color = 'red')})
+      # kõik laenutused, mis ei ole tähtajaks tagastatud kuva punase taustavärviga
+      formatStyle("hilinenud", target = "row",  backgroundColor = styleEqual(1, '#fee0d2'))})
 }
 
 # Käivita äpp
