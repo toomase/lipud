@@ -207,8 +207,8 @@ server <- function(input, output) {
   # Testimiseks kuva kogu ridade arv "responses" kaustas
   output$ridu <- renderText({nrow(df_2())})
   
-  # Koosta dünaamiline laenutatavate lippude nimekiri, et seda drop-down menüüs kuvada
-  # Sisaldab piirangut, et kuvatakse ainult valitud ajavahemikul vabu lippe
+  # Koosta dünaamiline tagastatavate lippude nimekiri, et seda drop-down menüüs kuvada
+  # Sisaldab piirangut, et kuvatakse ainult välja laenutatud riigilipud
   output$tagastus_riik <- renderUI({
     selectInput(inputId = "tagastus_riik", 
                 label = "Vali riik:", 
@@ -222,7 +222,7 @@ server <- function(input, output) {
                   ungroup() %>% 
                   filter((!is.na(algus_kp) & arv > 1) | 
                            (is.na(algus_kp) & arv == 1)) %>%
-                  arrange(lopp_kp, riik) %>% 
+                  arrange(riik) %>% 
                   # ainult need, mis on välja laenutatud
                   filter(!is.na(algus_kp), is.na(tagastamise_kp)) %>% 
                   mutate(riik_2 = str_c(riik, " - ", laenutaja)) %>% 
@@ -230,7 +230,8 @@ server <- function(input, output) {
     )
   })
     
-  # Koosta dünaamiline tagastatavate lippude nimekiri, et seda drop-down menüüs kuvada
+  # Koosta dünaamiline laenutatavate lippude nimekiri, et seda drop-down menüüs kuvada
+  # Kuvatud on ainult need lipud, mis ei ole valitud ajavahemikus välja laenutatud
   output$riik <- renderUI({
     selectInput(inputId = "riik", 
                 label = "Vali riigilipp:", 
@@ -244,13 +245,13 @@ server <- function(input, output) {
                   ungroup() %>% 
                   filter((!is.na(algus_kp) & arv > 1) | 
                            (is.na(algus_kp) & arv == 1)) %>%
-                  arrange(lopp_kp, riik) %>% 
-                  # mutate(interval_laenutus = interval(as.Date(algus_kp, "%d.%m.%Y"),
-                  #                                     as.Date(lopp_kp, "%d.%m.%Y")),
-                  #        interval_soov = interval(input$laenutamise_kp[1], input$laenutamise_kp[2]),
-                  #        kattuvus = int_overlaps(interval_laenutus, interval_soov)) %>% 
-                  # filter(kattuvus == FALSE) %>% 
-                  # ainult need, mis on välja laenutatud
+                  arrange(riik) %>% 
+                  # ainult need, mis ei ole välja laenutatud
+                  mutate(vahel = ifelse((input$laenutamise_kp[1] >= as.Date(algus_kp, "%d.%m.%Y") &
+                                           input$laenutamise_kp[1] <= as.Date(lopp_kp, "%d.%m.%Y")) |
+                                        (as.Date(algus_kp, "%d.%m.%Y") >= input$laenutamise_kp[1] &
+                                             as.Date(algus_kp, "%d.%m.%Y") <= input$laenutamise_kp[2]), 1, 0)) %>%
+                  filter(vahel == 0 | is.na(algus_kp)) %>%
                   pull(riik)
     )
   })
@@ -268,9 +269,16 @@ server <- function(input, output) {
       ungroup() %>% 
       filter((!is.na(algus_kp) & arv > 1) | 
                (is.na(algus_kp) & arv == 1)) %>%
-      select(-arv) %>% 
+      select(-arv, -id, -tagastamise_kp) %>% 
       arrange(lopp_kp, riik)
-      }, escape = FALSE, filter = "top")})
+      }, 
+    escape = FALSE, rownames = FALSE,
+    colnames = c(" " = "lipp"),
+    # lipu järgi ei saa filtreerida
+    options = list(
+      columnDefs = list(list(searchable = FALSE, targets = 0))),
+    ) %>% 
+      formatStyle('lopp_kp',  color = 'red')})
 }
 
 # Käivita äpp
