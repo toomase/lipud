@@ -4,6 +4,7 @@ library(DT)
 library(shinyjs)
 library(lubridate)
 library(shinythemes)
+library(hrbrthemes)
 
 # Lae algandmed kõigi lippude kohta
 riigid_lippudega <- read_csv("~/Dropbox/DataScience/R/lipud/responses/riigid_lippudega.csv")
@@ -26,6 +27,7 @@ load_data <- function() {
 }
 
 
+# eraldi UI element, mis küsib partooli
 shinyServer(function(input, output, session) {
 #### UI code --------------------------------------------------------------
   output$ui <- renderUI({
@@ -33,7 +35,7 @@ shinyServer(function(input, output, session) {
       ##### UI code for login page
       fluidPage(
         fluidRow(
-          column(width = 2, offset = 5,
+          column(width = 3, offset = 5,
             br(), br(), br(), br(),
             uiOutput("uiLogin"),
             uiOutput("pass")
@@ -107,17 +109,20 @@ shinyServer(function(input, output, session) {
             )
           ),
           
+          # Kuva eraldi tabidel laenutamiste tabel ja statistika
           mainPanel(
-            # Kuva välja tabel kõigi lippude kohta koos laenutamise staatusega
-            dataTableOutput("table"),
-            
-            # Kuva kogu ridade arv "responses" kaustas
-            textOutput("ridu")
+            tabsetPanel(type = "tabs",
+                        # Kuva välja tabel kõigi lippude kohta koos laenutamise staatusega
+                        tabPanel("Laenutus",  dataTableOutput("table")),
+                        tabPanel("Statistika", plotOutput("top15_lippu"),
+                                 plotOutput("top15_laenutajat")))
           )
         )
       )
     }
   })
+  
+  
   
 #### YOUR APP'S SERVER CODE GOES HERE ----------------------------------------
     
@@ -281,13 +286,53 @@ shinyServer(function(input, output, session) {
                    "Laenutatud alates" = "algus_kp", "Laenutatud kuni" = "lopp_kp"),
       # lipu järgi ei saa filtreerida
       options = list(
-        pageLength = 20,  # kuva vaikimisi 20 rida
+        pageLength = 15,  # kuva vaikimisi 20 rida
         columnDefs = list(list(targets = 5, visible = FALSE),  # peida veerg "hilinenud" - kasutan taustavärviks
                           list(width = "20px", targets = 0))),  # lipu veerg kindla laiusega  
       ) %>% 
         # kõik laenutused, mis ei ole tähtajaks tagastatud kuva punase taustavärviga
         formatStyle("hilinenud", target = "row",  backgroundColor = styleEqual(1, '#fee0d2'))})
     
+    df_graafikuks <- eventReactive(input$lisa | input$tagasta, {
+      load_data() %>% 
+        filter(!is.na(algus_kp)) %>% 
+        arrange(id, algus_kp, tagastamise_kp) %>% 
+        distinct(id, .keep_all = TRUE) %>% 
+        mutate(riik_puhastatud = str_replace(riik, "-[0-9]$", ""),
+               laenutaja_puhastatud = str_to_lower(laenutaja))
+    })
+
+    output$top15_lippu <- renderPlot({
+      df_graafikuks() %>%
+        count(riik_puhastatud, sort = TRUE) %>%
+        head(15) %>%
+        ggplot(aes(fct_reorder(riik_puhastatud, n), n)) +
+        geom_col(alpha = 0.8, fill = "#2b8cbe") +
+        geom_text(aes(label = n), hjust = 1.7, colour = "white", fontface = "bold") +
+        scale_y_continuous(expand = c(0, 0)) +
+        coord_flip() +
+        theme_ipsum_rc() +
+        guides(fill = FALSE) +
+        labs(title = "TOP15 lippu",
+             y = "laenutuste arv",
+             x = NULL)
+    })
+    
+    output$top15_laenutajat <- renderPlot({
+      df_graafikuks() %>% 
+        count(laenutaja_puhastatud, sort = TRUE) %>% 
+        head(15) %>% 
+        ggplot(aes(fct_reorder(laenutaja_puhastatud, n), n)) +
+        geom_col(alpha = 0.8, fill = "#2b8cbe") + 
+        geom_text(aes(label = n), hjust = 1.7, colour = "white", fontface = "bold") +
+        scale_y_continuous(expand = c(0, 0)) +
+        coord_flip() +
+        theme_ipsum_rc() +
+        guides(fill = FALSE) +
+        labs(title = "TOP15 laenutajat",
+             y = "laenutatud lippude koguarv",
+             x = NULL)
+    })
     
     
 #### PASSWORD server code ---------------------------------------------------- 
