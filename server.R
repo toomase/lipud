@@ -213,7 +213,7 @@ shinyServer(function(input, output, session) {
     # ja klikitakse "Tagasta"
     observeEvent(input$tagasta, {
       if (is.null(input$tagastus_riik) & is.null(input$table_rows_selected)) {
-        alert("Sisesta tagastaja")
+        alert("Vali tagastatav lipp")
       }
     })
     
@@ -281,17 +281,21 @@ shinyServer(function(input, output, session) {
           select(-arv, -id, -tagastamise_kp) %>% 
           arrange(as.Date(lopp_kp, "%d.%m.%Y"), riik)
       }, 
-      escape = FALSE, rownames = FALSE,
+      escape = FALSE, 
+      rownames = FALSE,
       colnames = c(" " = "lipp", "Riik" = "riik", "Laenutaja" = "laenutaja",
                    "Laenutatud alates" = "algus_kp", "Laenutatud kuni" = "lopp_kp"),
       # lipu järgi ei saa filtreerida
       options = list(
         pageLength = 15,  # kuva vaikimisi 20 rida
         columnDefs = list(list(targets = 5, visible = FALSE),  # peida veerg "hilinenud" - kasutan taustavärviks
-                          list(width = "20px", targets = 0))),  # lipu veerg kindla laiusega  
+                          list(width = "20px", targets = 0))  # lipu veerg kindla laiusega  
+        )
       ) %>% 
         # kõik laenutused, mis ei ole tähtajaks tagastatud kuva punase taustavärviga
-        formatStyle("hilinenud", target = "row",  backgroundColor = styleEqual(1, '#fee0d2'))})
+        formatStyle("hilinenud", target = "row",  backgroundColor = styleEqual(1, '#fee0d2'))
+      })
+        
     
     df_graafikuks <- eventReactive(input$lisa | input$tagasta, {
       load_data() %>% 
