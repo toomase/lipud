@@ -34,6 +34,7 @@ shinyServer(function(input, output, session) {
     if (user_input$authenticated == FALSE) {
       ##### UI code for login page
       fluidPage(
+        titlePanel("", windowTitle = "Lipud"),
         fluidRow(
           column(width = 3, offset = 5,
             br(), br(), br(), br(),
