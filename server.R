@@ -6,6 +6,7 @@ library(lubridate)
 library(shinythemes)
 library(hrbrthemes)
 library(shinyalert)
+library(writexl)
 
 # Selleks, et uus äpi versioon Shiny serverisse tõsta käivita Terminalis käsk:
 # cp ~/Dropbox/DataScience/R/lipud/server.R ~/ShinyApps/lipud/
@@ -112,6 +113,15 @@ shinyServer(function(input, output, session) {
               # Nupp, mis lisab tagastuse andmed baasi
               actionButton(inputId = "tagasta", 
                            label = "Tagasta")
+            ),
+            
+            wellPanel(
+              h3("Download"),
+              h5("Lae alla Excel kõigi lippude või laenutamiste kohta"),
+              
+              downloadButton("download_koik", "Kõik lipud"),
+              
+              downloadButton("download_laenutatud", "Hetkel laenutatud lipud")
             )
           ),
           
@@ -119,7 +129,8 @@ shinyServer(function(input, output, session) {
           mainPanel(
             tabsetPanel(type = "tabs",
                         # Kuva välja tabel kõigi lippude kohta koos laenutamise staatusega
-                        tabPanel("Laenutus",  dataTableOutput("table")),
+                        tabPanel("Laenutus",  
+                                 dataTableOutput("table")),
                         tabPanel("Statistika", plotOutput("top15_lippu"),
                                  plotOutput("top15_laenutajat")))
           )
@@ -323,6 +334,31 @@ shinyServer(function(input, output, session) {
         # kõik laenutused, mis ei ole tähtajaks tagastatud kuva punase taustavärviga
         formatStyle("hilinenud", target = "row",  backgroundColor = styleEqual(1, '#fee0d2'))
       })
+    
+    # Salvesta Exceli failina kogu lippude tabel (samal kujul nagu äpis välja kuvatud)
+    output$download_koik <- downloadHandler(
+      filename = "koik_lipud.xlsx",
+      
+      content = function(file){
+        data <- df_2() %>% 
+          select(-arv, -id, -tagastamise_kp, -lipp) %>% 
+          arrange(as.Date(lopp_kp, "%d.%m.%Y"), riik) %>% 
+          write_xlsx(file)
+      }
+    )
+    
+    # Salvesta Exceli failina hetkel laenutatud lippude tabel
+    output$download_laenutatud <- downloadHandler(
+      filename = "laenutatud_lipud.xlsx",
+      
+      content = function(file){
+        data <- df_2() %>% 
+          select(-arv, -id, -tagastamise_kp, -lipp) %>% 
+          arrange(as.Date(lopp_kp, "%d.%m.%Y"), riik) %>% 
+          filter(!is.na(lopp_kp)) %>% 
+          write_xlsx(file)
+      }
+    )
         
     
     df_graafikuks <- eventReactive(input$lisa | input$tagasta, {
