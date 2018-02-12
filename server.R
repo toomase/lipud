@@ -5,6 +5,10 @@ library(shinyjs)
 library(lubridate)
 library(shinythemes)
 library(hrbrthemes)
+library(shinyalert)
+
+# Selleks, et uus äpi versioon Shiny serverisse tõsta käivita Terminalis käsk:
+# cp ~/Dropbox/DataScience/R/lipud/server.R ~/ShinyApps/lipud/
 
 # Lae algandmed kõigi lippude kohta
 riigid_lippudega <- read_csv("~/Dropbox/DataScience/R/lipud/responses/riigid_lippudega.csv")
@@ -49,6 +53,7 @@ shinyServer(function(input, output, session) {
       fluidPage(
         theme = shinytheme("flatly"),  # muuda üldine kujundus
         useShinyjs(),  # vajalik lisafunktsioonide (alert ja reset) jaoks 
+        useShinyalert(),  # vajalik popup alertide kuvamiseks
         
         titlePanel("EOK lippude laenutamise andmebaas",
                    windowTitle = "Lipud"),
@@ -149,9 +154,25 @@ shinyServer(function(input, output, session) {
     
     # Anna veateade, kui laenutaja nimi on sisestamata ja klikitakse "Lisa"
     observeEvent(input$lisa, {
-      if (input$laenutaja == "") {
-        alert("Sisesta laenutaja nimi")
-      }
+      if (input$laenutaja == "" & !is.null(input$riik)) {
+        shinyalert(title = "Sisesta laenutaja",
+                   type = "error",
+                   closeOnClickOutside = TRUE,
+                   confirmButtonText = "OK",
+                   confirmButtonCol = "#95A5A5")
+      } else if (input$laenutaja != "" & is.null(input$riik)) {
+        shinyalert(title = "Sisesta lipp",
+                   type = "error",
+                   closeOnClickOutside = TRUE,
+                   confirmButtonText = "OK",
+                   confirmButtonCol = "#95A5A5")
+      } else if (input$laenutaja == "" & is.null(input$riik)) {
+        shinyalert(title = "Sisesta lipp ja laenutaja",
+                   type = "error",
+                   closeOnClickOutside = TRUE,
+                   confirmButtonText = "OK",
+                   confirmButtonCol = "#95A5A5")
+      } 
     })
     
     # Kui klikitakse "Lisa", siis salvesta csv
@@ -214,7 +235,11 @@ shinyServer(function(input, output, session) {
     # ja klikitakse "Tagasta"
     observeEvent(input$tagasta, {
       if (is.null(input$tagastus_riik) & is.null(input$table_rows_selected)) {
-        alert("Vali tagastatav lipp")
+        shinyalert(title = "Vali tagastatav lipp",
+                   type = "error",
+                   closeOnClickOutside = TRUE,
+                   confirmButtonText = "OK",
+                   confirmButtonCol = "#95A5A5")
       }
     })
     
@@ -265,10 +290,12 @@ shinyServer(function(input, output, session) {
                   choices = df_2() %>% 
                     arrange(riik) %>% 
                     # ainult need, mis ei ole valitud kuupäevadel välja laenutatud
+                    # ja mille tagastamine ei ole hilinenud
                     mutate(vahel = ifelse((input$laenutamise_kp[1] >= as.Date(algus_kp, "%d.%m.%Y") &
                                              input$laenutamise_kp[1] <= as.Date(lopp_kp, "%d.%m.%Y")) |
                                             (as.Date(algus_kp, "%d.%m.%Y") >= input$laenutamise_kp[1] &
-                                               as.Date(algus_kp, "%d.%m.%Y") <= input$laenutamise_kp[2]), 1, 0)) %>%
+                                               as.Date(algus_kp, "%d.%m.%Y") <= input$laenutamise_kp[2]) |
+                                            as.Date(lopp_kp, "%d.%m.%Y") < Sys.Date(), 1, 0)) %>%
                     filter(vahel == 0 | is.na(algus_kp)) %>%
                     pull(riik)
       )
